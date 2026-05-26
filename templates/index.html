@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>티스토리 맛집 블로그 자동화</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    .drop-zone { border: 2px dashed #d1d5db; transition: border-color .2s, background .2s; }
+    .drop-zone.drag-over { border-color: #6366f1; background: #eef2ff; }
+    .step-indicator.active { background: #6366f1; color: #fff; }
+    .step-indicator.done { background: #22c55e; color: #fff; }
+    .prose-preview h1 { font-size: 1.5rem; font-weight: 700; margin: 1rem 0 .5rem; }
+    .prose-preview h2 { font-size: 1.25rem; font-weight: 700; margin: .9rem 0 .4rem; border-bottom: 1px solid #e5e7eb; padding-bottom: .2rem; }
+    .prose-preview h3 { font-size: 1.1rem; font-weight: 600; margin: .7rem 0 .3rem; }
+    .prose-preview p { margin: .5rem 0; line-height: 1.7; }
+    .prose-preview ul, .prose-preview ol { padding-left: 1.5rem; margin: .5rem 0; }
+    .prose-preview table { border-collapse: collapse; width: 100%; margin: .5rem 0; }
+    .prose-preview th, .prose-preview td { border: 1px solid #e5e7eb; padding: .4rem .6rem; }
+    .prose-preview th { background: #f9fafb; }
+    .spinner { border: 3px solid #e5e7eb; border-top-color: #6366f1; border-radius: 50%; width: 1.5rem; height: 1.5rem; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<div class="max-w-3xl mx-auto px-4 py-8">
+
+  <!-- 헤더 -->
+  <div class="text-center mb-8">
+    <h1 class="text-3xl font-bold text-indigo-600">🍽️ 맛집 블로그 자동화</h1>
+    <p class="text-gray-500 mt-2">식당명 + 사진만 넣으면 SEO 최적화 블로그 글이 완성됩니다</p>
+  </div>
+
+  <!-- 진행 단계 표시 -->
+  <div class="flex items-center justify-center gap-4 mb-8">
+    <div class="flex items-center gap-2">
+      <div id="step1-ind" class="step-indicator active w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm">1</div>
+      <span class="text-sm font-medium text-gray-600">식당 정보</span>
+    </div>
+    <div class="w-12 h-px bg-gray-300"></div>
+    <div class="flex items-center gap-2">
+      <div id="step2-ind" class="step-indicator w-8 h-8 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center font-bold text-sm">2</div>
+      <span class="text-sm font-medium text-gray-400">글 미리보기</span>
+    </div>
+    <div class="w-12 h-px bg-gray-300"></div>
+    <div class="flex items-center gap-2">
+      <div id="step3-ind" class="step-indicator w-8 h-8 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center font-bold text-sm">3</div>
+      <span class="text-sm font-medium text-gray-400">발행</span>
+    </div>
+  </div>
+
+  <!-- ===== STEP 1: 식당 정보 입력 ===== -->
+  <div id="step1" class="space-y-5">
+    <div class="bg-white rounded-2xl shadow p-6 space-y-4">
+      <h2 class="text-lg font-bold text-gray-800">① 식당 검색</h2>
+
+      <div class="flex gap-2">
+        <input id="search-input" type="text" placeholder="식당명을 입력하세요 (예: 광화문 국수)"
+               class="flex-1 border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+        <button id="search-btn" onclick="searchRestaurant()"
+                class="bg-indigo-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">
+          검색
+        </button>
+      </div>
+
+      <!-- 검색 결과 -->
+      <div id="search-results" class="hidden space-y-2"></div>
+
+      <!-- 선택된 식당 -->
+      <div id="selected-restaurant" class="hidden bg-indigo-50 rounded-xl p-4 border border-indigo-200">
+        <div class="flex items-start justify-between">
+          <div>
+            <p id="sel-name" class="font-bold text-indigo-800"></p>
+            <p id="sel-address" class="text-sm text-gray-600 mt-0.5"></p>
+            <p id="sel-phone" class="text-sm text-gray-500 mt-0.5"></p>
+          </div>
+          <button onclick="clearRestaurant()" class="text-gray-400 hover:text-gray-600 text-lg">✕</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 사진 업로드 -->
+    <div class="bg-white rounded-2xl shadow p-6 space-y-4">
+      <h2 class="text-lg font-bold text-gray-800">② 사진 업로드</h2>
+
+      <div id="drop-zone" class="drop-zone rounded-xl p-8 text-center cursor-pointer"
+           onclick="document.getElementById('file-input').click()"
+           ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+        <div class="text-4xl mb-2">📷</div>
+        <p class="text-gray-500 text-sm">클릭하거나 사진을 드래그해서 업로드</p>
+        <p class="text-gray-400 text-xs mt-1">JPG, PNG, WEBP 지원 · 최대 10장</p>
+        <input id="file-input" type="file" multiple accept="image/*" class="hidden" onchange="onFileSelect(event)">
+      </div>
+
+      <div id="image-preview" class="grid grid-cols-4 gap-2 hidden"></div>
+    </div>
+
+    <!-- 추가 정보 -->
+    <div class="bg-white rounded-2xl shadow p-6 space-y-4">
+      <h2 class="text-lg font-bold text-gray-800">③ 추가 정보 (선택)</h2>
+
+      <div>
+        <label class="text-sm font-medium text-gray-700">방문 날짜</label>
+        <input id="visit-date" type="date" class="w-full mt-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+      </div>
+
+      <div>
+        <label class="text-sm font-medium text-gray-700">추가 메모 <span class="text-gray-400 font-normal">(주문 메뉴, 가격, 특이사항 등)</span></label>
+        <textarea id="extra-notes" rows="3" placeholder="예: 스테이크 75,000원, 웨이팅 30분, 주차 불가"
+                  class="w-full mt-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"></textarea>
+      </div>
+    </div>
+
+    <!-- 생성 버튼 -->
+    <button id="generate-btn" onclick="generatePost()"
+            class="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold text-base hover:bg-indigo-700 transition disabled:opacity-50">
+      ✨ AI 블로그 글 생성
+    </button>
+
+    <!-- 로딩 -->
+    <div id="loading" class="hidden text-center py-8 space-y-3">
+      <div class="spinner mx-auto"></div>
+      <p id="loading-msg" class="text-gray-500 text-sm">사진을 분석하고 블로그 글을 작성하는 중...</p>
+    </div>
+  </div>
+
+  <!-- ===== STEP 2: 글 미리보기 ===== -->
+  <div id="step2" class="hidden space-y-5">
+    <div class="bg-white rounded-2xl shadow p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-bold text-gray-800">생성된 블로그 글</h2>
+        <button onclick="goToStep(1)" class="text-sm text-indigo-600 hover:underline">← 다시 생성</button>
+      </div>
+
+      <!-- 제목 수정 -->
+      <div>
+        <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">제목</label>
+        <input id="post-title" type="text" class="w-full mt-1 border border-gray-300 rounded-lg px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-400">
+      </div>
+
+      <!-- 메타 설명 -->
+      <div>
+        <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">메타 설명 <span id="meta-len" class="text-gray-400 font-normal"></span></label>
+        <textarea id="post-meta" rows="2" class="w-full mt-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"></textarea>
+      </div>
+
+      <!-- 태그 -->
+      <div>
+        <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">태그</label>
+        <div id="tag-list" class="flex flex-wrap gap-1.5 mt-1.5"></div>
+        <input id="post-tags-raw" type="hidden">
+      </div>
+
+      <!-- SEO 키워드 -->
+      <div>
+        <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">SEO 키워드</label>
+        <div id="seo-keywords" class="flex flex-wrap gap-1.5 mt-1.5"></div>
+      </div>
+    </div>
+
+    <!-- 본문 탭 (편집 / 미리보기) -->
+    <div class="bg-white rounded-2xl shadow p-6 space-y-3">
+      <div class="flex gap-2 border-b pb-2">
+        <button id="tab-edit" onclick="switchTab('edit')" class="text-sm font-medium px-3 py-1 rounded bg-indigo-100 text-indigo-700">✏️ 편집</button>
+        <button id="tab-preview" onclick="switchTab('preview')" class="text-sm font-medium px-3 py-1 rounded text-gray-500 hover:bg-gray-100">👁 미리보기</button>
+      </div>
+
+      <textarea id="post-content" rows="20"
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y"
+                oninput="syncPreview()"></textarea>
+      <div id="preview-pane" class="hidden prose-preview text-sm text-gray-800 leading-relaxed"></div>
+    </div>
+
+    <button onclick="goToStep(3)"
+            class="w-full bg-green-600 text-white py-3.5 rounded-xl font-bold text-base hover:bg-green-700 transition">
+      다음: 발행 설정 →
+    </button>
+  </div>
+
+  <!-- ===== STEP 3: 발행 설정 ===== -->
+  <div id="step3" class="hidden space-y-5">
+    <div class="bg-white rounded-2xl shadow p-6 space-y-5">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-bold text-gray-800">발행 설정</h2>
+        <button onclick="goToStep(2)" class="text-sm text-indigo-600 hover:underline">← 미리보기</button>
+      </div>
+
+      <!-- 발행 시간 선택 -->
+      <div class="space-y-3">
+        <label class="text-sm font-medium text-gray-700">발행 시간</label>
+        <div class="flex gap-4">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="publish-type" value="now" checked class="text-indigo-600" onchange="toggleSchedule()">
+            <span class="text-sm">즉시 발행</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="publish-type" value="schedule" class="text-indigo-600" onchange="toggleSchedule()">
+            <span class="text-sm">예약 발행</span>
+          </label>
+        </div>
+        <div id="schedule-picker" class="hidden">
+          <input type="datetime-local" id="scheduled-at"
+                 class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+        </div>
+      </div>
+
+      <!-- 발행 요약 -->
+      <div class="bg-gray-50 rounded-xl p-4 space-y-1.5 text-sm">
+        <div class="flex gap-2"><span class="text-gray-500 w-16 shrink-0">제목</span><span id="sum-title" class="font-medium text-gray-800 truncate"></span></div>
+        <div class="flex gap-2"><span class="text-gray-500 w-16 shrink-0">태그 수</span><span id="sum-tags" class="text-gray-700"></span></div>
+        <div class="flex gap-2"><span class="text-gray-500 w-16 shrink-0">글자 수</span><span id="sum-chars" class="text-gray-700"></span></div>
+      </div>
+    </div>
+
+    <button id="post-btn" onclick="submitPost()"
+            class="w-full bg-orange-500 text-white py-3.5 rounded-xl font-bold text-base hover:bg-orange-600 transition">
+      🚀 티스토리에 발행하기
+    </button>
+
+    <!-- 발행 진행 -->
+    <div id="post-loading" class="hidden text-center py-6 space-y-3">
+      <div class="spinner mx-auto"></div>
+      <p class="text-gray-500 text-sm">브라우저 자동화로 티스토리에 업로드 중...</p>
+      <p class="text-gray-400 text-xs">창이 열려도 닫지 마세요 (1-2분 소요)</p>
+    </div>
+
+    <!-- 발행 결과 -->
+    <div id="post-result" class="hidden bg-green-50 border border-green-200 rounded-2xl p-6 text-center space-y-3">
+      <div class="text-4xl">🎉</div>
+      <p class="text-green-700 font-bold">발행 완료!</p>
+      <a id="post-url" href="#" target="_blank" class="text-indigo-600 text-sm underline break-all"></a>
+      <button onclick="resetAll()" class="mt-2 bg-indigo-600 text-white px-6 py-2 rounded-lg text-sm hover:bg-indigo-700">새 글 작성</button>
+    </div>
+
+    <!-- 발행 오류 -->
+    <div id="post-error" class="hidden bg-red-50 border border-red-200 rounded-xl p-4">
+      <p class="text-red-700 font-medium">발행 오류</p>
+      <p id="post-error-msg" class="text-red-600 text-sm mt-1"></p>
+    </div>
+  </div>
+
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
